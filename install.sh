@@ -53,6 +53,13 @@ echo -e "\n${BLUE}[3/5] Installing high-priority binary to /usr/local/bin...${NC
 cp "$SCRIPT_DIR/bin/nam" /usr/local/bin/nam
 chmod 755 /usr/local/bin/nam
 
+# Test whether the binary can run on the host glibc
+if ! /usr/local/bin/nam 2>&1 | grep -q -E "Usage: nam|invalid option"; then
+    echo -e "${YELLOW}[!] Pre-built binary requires a different glibc version for this distribution.${NC}"
+    echo -e "${BLUE}[*] Automatically building from source with modern patches...${NC}"
+    "$SCRIPT_DIR/build-from-source.sh"
+fi
+
 echo -e "\n${BLUE}[4/5] Applying update protection locks...${NC}"
 # Prevent apt-get upgrade from replacing patched nam and ns2
 apt-mark hold nam ns2 >/dev/null 2>&1 || true

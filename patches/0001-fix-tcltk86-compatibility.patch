@@ -1,24 +1,41 @@
-Description: Fix NAM for modern 64-bit systems and Tcl/Tk 8.6+
- - Restore native 'source' procedure after TclCL import override to support 'source -encoding'
- - Disable redundant et_tk.load() to prevent duplicate TTK element collision in Tk 8.6
- - Preserve system tcl_library and tk_library paths
- - Add fallback colors in paint.cc to prevent NULL pointer dereferences in Tk_GetColor
-Author: SpitFiyah <mirafnan619@gmail.com>
-
---- a/main.cc
-+++ b/main.cc
-@@ -338,8 +338,8 @@
+--- a/main.cc	2011-11-04 22:48:42.000000000 +0530
++++ b/main.cc	2026-10-27 23:54:53.224169380 +0530
+@@ -226,11 +226,10 @@
+ 	return (TCL_OK);
+ }
+ 
+-char* parse_assignment(char* cp)
++const char* parse_assignment(const char* cp)
+ {
+ 	cp = strchr(cp, '=');
+ 	if (cp != 0) {
+-		*cp = 0;
+ 		return (cp + 1);
+ 	} else
+ 		return ("true");
+@@ -285,7 +284,7 @@
+ #endif
+ 
+ void
+-die(char *s)
++die(const char *s)
+ {
+ 	fprintf(stderr, "%s", s);
+ 	exit (1);
+@@ -339,8 +338,9 @@
          Tcl_SetVar(interp, "tcl_library", "./lib/tcl7.6", TCL_GLOBAL_ONLY);
          Tcl_SetVar(interp, "tk_library", "./lib/tk4.2", TCL_GLOBAL_ONLY);
  #else
 -        Tcl_SetVar(interp, "tcl_library", "", TCL_GLOBAL_ONLY);
 -        Tcl_SetVar(interp, "tk_library", "", TCL_GLOBAL_ONLY);
++        /* Keep system tcl_library and tk_library intact for modern Tcl/Tk 8.6 */
 +        // Tcl_SetVar(interp, "tcl_library", "", TCL_GLOBAL_ONLY);
 +        // Tcl_SetVar(interp, "tk_library", "", TCL_GLOBAL_ONLY);
+                                                                                 
+         // this seems just a hack, should NOT have hard-coded library path!
+         // why there's no problem with old  TCL/TK?
+@@ -360,6 +360,8 @@
  #endif
- 
- 	if (Otcl_Init(interp) == TCL_ERROR) {
-@@ -357,6 +357,8 @@
  	Tcl::init(interp, appname);
  	Tcl& tcl = Tcl::instance();
 +	// Restore standard Tcl 'source' procedure overridden by tclcl import mechanism
@@ -26,7 +43,9 @@ Author: SpitFiyah <mirafnan619@gmail.com>
  
  	tcl.evalf(display? "set argv \"-name %s -display %s\"" :
  			   "set argv \"-name %s\"", 
-@@ -374,10 +376,10 @@
+@@ -372,13 +374,13 @@
+ 	if (Tk_Init(tcl.interp()) == TCL_OK)
+ 		tk = Tk_MainWindow(tcl.interp());
  	if (tk == 0) {
 -		fprintf(stderr, "nam: %s\n", interp->result);
 +		fprintf(stderr, "nam: %s\n", Tcl_GetStringResult(tcl.interp()));
@@ -38,8 +57,10 @@ Author: SpitFiyah <mirafnan619@gmail.com>
 -	et_tk.load();
 +	// et_tk.load(); -- Tk 8.6 is already initialized by Tk_Init; re-running causes duplicate ttk element errors
  	et_nam.load();
---- a/paint.cc
-+++ b/paint.cc
+ 
+ 	int op;
+--- a/paint.cc	2003-10-12 04:26:50.000000000 +0530
++++ b/paint.cc	2026-10-27 23:54:53.224498035 +0530
 @@ -48,6 +48,8 @@
  	Tcl& tcl = Tcl::instance();
  	Tk_Window tk = tcl.tkmain();
@@ -49,30 +70,45 @@ Author: SpitFiyah <mirafnan619@gmail.com>
  	XColor* p = Tk_GetColor(tcl.interp(), tk, bg);
  	if (p == 0)
  		abort();
-@@ -90,6 +92,8 @@
+@@ -87,9 +89,11 @@
+ 		p = Tk_GetColor(tcl.interp(), tk, "black");
+ 	else {
  		Tk_Uid colorname;
- 		if (strcmp(color, "background") == 0)
+-		if (strcmp(color, "background") == 0)
++		if (strcmp(color, "background") == 0) {
  			colorname = Tk_GetOption(tk, "viewBackground", NULL);
-+		if (colorname == NULL)
-+			colorname = Tk_GetUid("gray90");
- 		else 
+-		else 
++			if (colorname == NULL)
++				colorname = Tk_GetUid("gray90");
++		} else 
  			colorname = Tk_GetUid(color);
  		p = Tk_GetColor(tcl.interp(), tk, colorname);
-@@ -134,6 +138,8 @@
+ 		// Default to black
+@@ -130,9 +134,11 @@
+ 	Tcl& tcl = Tcl::instance();
+ 	Tk_Window tk = tcl.tkmain();
  	Tk_Uid colorname;
- 	if (strcmp(color, "background") == 0)
+-	if (strcmp(color, "background") == 0)
++	if (strcmp(color, "background") == 0) {
  		colorname = Tk_GetOption(tk, "viewBackground", NULL);
-+	if (colorname == NULL)
-+		colorname = Tk_GetUid("gray90");
- 	else 
+-	else 
++		if (colorname == NULL)
++			colorname = Tk_GetUid("gray90");
++	} else 
  		colorname = Tk_GetUid(color);
  	XColor* p = Tk_GetColor(tcl.interp(), tk, colorname);
-@@ -172,6 +178,8 @@
+ 	if (p == 0) {
+@@ -168,9 +174,11 @@
+ 	Tcl& tcl = Tcl::instance();
+ 	Tk_Window tk = tcl.tkmain();
  	Tk_Uid colorname;
- 	if (strcmp(color, "background") == 0)
+-	if (strcmp(color, "background") == 0)
++	if (strcmp(color, "background") == 0) {
  		colorname = Tk_GetOption(tk, "background", NULL);
-+	if (colorname == NULL)
-+		colorname = Tk_GetUid("gray90");
- 	else 
+-	else 
++		if (colorname == NULL)
++			colorname = Tk_GetUid("gray90");
++	} else 
  		colorname = Tk_GetUid(color);
  	XColor* p = Tk_GetColor(tcl.interp(), tk, colorname);
+ 	if (p == 0) {
