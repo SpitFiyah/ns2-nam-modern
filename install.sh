@@ -7,6 +7,9 @@
 
 set -e
 
+export DEBIAN_FRONTEND=noninteractive
+export TZ=Etc/UTC
+
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
