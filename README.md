@@ -2,7 +2,7 @@
 
 > **Fixed & Working Network Simulator (NS-2) and Network Animator (NAM) for Modern Linux (Ubuntu 20.04, 22.04, 24.04, 26.04+).**
 
-![NAM Screenshot](https://raw.githubusercontent.com/SpitFiyah/ns2-nam-modern/main/screenshot.png)
+![NAM Screenshot](https://github.com/SpitFiyah/ns2-nam-modern/blob/main/screenshot.png?raw=true)
 
 ---
 
