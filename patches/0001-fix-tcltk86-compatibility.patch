@@ -1,0 +1,78 @@
+Description: Fix NAM for modern 64-bit systems and Tcl/Tk 8.6+
+ - Restore native 'source' procedure after TclCL import override to support 'source -encoding'
+ - Disable redundant et_tk.load() to prevent duplicate TTK element collision in Tk 8.6
+ - Preserve system tcl_library and tk_library paths
+ - Add fallback colors in paint.cc to prevent NULL pointer dereferences in Tk_GetColor
+Author: SpitFiyah <mirafnan619@gmail.com>
+
+--- a/main.cc
++++ b/main.cc
+@@ -338,8 +338,8 @@
+         Tcl_SetVar(interp, "tcl_library", "./lib/tcl7.6", TCL_GLOBAL_ONLY);
+         Tcl_SetVar(interp, "tk_library", "./lib/tk4.2", TCL_GLOBAL_ONLY);
+ #else
+-        Tcl_SetVar(interp, "tcl_library", "", TCL_GLOBAL_ONLY);
+-        Tcl_SetVar(interp, "tk_library", "", TCL_GLOBAL_ONLY);
++        // Tcl_SetVar(interp, "tcl_library", "", TCL_GLOBAL_ONLY);
++        // Tcl_SetVar(interp, "tk_library", "", TCL_GLOBAL_ONLY);
+ #endif
+ 
+ 	if (Otcl_Init(interp) == TCL_ERROR) {
+@@ -357,6 +357,8 @@
+ 	Tcl::init(interp, appname);
+ 	Tcl& tcl = Tcl::instance();
++	// Restore standard Tcl 'source' procedure overridden by tclcl import mechanism
++	Tcl_Eval(interp, "if {[llength [info commands source.orig]]} { rename source {}; rename source.orig source }");
+ 
+ 	tcl.evalf(display? "set argv \"-name %s -display %s\"" :
+ 			   "set argv \"-name %s\"", 
+@@ -374,10 +376,10 @@
+ 	if (tk == 0) {
+-		fprintf(stderr, "nam: %s\n", interp->result);
++		fprintf(stderr, "nam: %s\n", Tcl_GetStringResult(tcl.interp()));
+ 		exit(1);
+ 	}
+ 	tcl.tkmain(tk);
+ 
+ 	extern EmbeddedTcl et_tk, et_nam;
+-	et_tk.load();
++	// et_tk.load(); -- Tk 8.6 is already initialized by Tk_Init; re-running causes duplicate ttk element errors
+ 	et_nam.load();
+--- a/paint.cc
++++ b/paint.cc
+@@ -48,6 +48,8 @@
+ 	Tcl& tcl = Tcl::instance();
+ 	Tk_Window tk = tcl.tkmain();
+ 	Tk_Uid bg = Tk_GetOption(tk, "viewBackground", NULL);
++	if (bg == NULL)
++		bg = Tk_GetUid("gray90");
+ 	XColor* p = Tk_GetColor(tcl.interp(), tk, bg);
+ 	if (p == 0)
+ 		abort();
+@@ -90,6 +92,8 @@
+ 		Tk_Uid colorname;
+ 		if (strcmp(color, "background") == 0)
+ 			colorname = Tk_GetOption(tk, "viewBackground", NULL);
++		if (colorname == NULL)
++			colorname = Tk_GetUid("gray90");
+ 		else 
+ 			colorname = Tk_GetUid(color);
+ 		p = Tk_GetColor(tcl.interp(), tk, colorname);
+@@ -134,6 +138,8 @@
+ 	Tk_Uid colorname;
+ 	if (strcmp(color, "background") == 0)
+ 		colorname = Tk_GetOption(tk, "viewBackground", NULL);
++	if (colorname == NULL)
++		colorname = Tk_GetUid("gray90");
+ 	else 
+ 		colorname = Tk_GetUid(color);
+ 	XColor* p = Tk_GetColor(tcl.interp(), tk, colorname);
+@@ -172,6 +178,8 @@
+ 	Tk_Uid colorname;
+ 	if (strcmp(color, "background") == 0)
+ 		colorname = Tk_GetOption(tk, "background", NULL);
++	if (colorname == NULL)
++		colorname = Tk_GetUid("gray90");
+ 	else 
+ 		colorname = Tk_GetUid(color);
+ 	XColor* p = Tk_GetColor(tcl.interp(), tk, colorname);
