@@ -13,6 +13,10 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BUILD_DIR="/tmp/nam_build_src"
 
+echo "Enabling source repositories..."
+sed -i "s/# deb-src/deb-src/g" /etc/apt/sources.list 2>/dev/null || true
+sed -i "s/Types: deb/Types: deb deb-src/g" /etc/apt/sources.list.d/ubuntu.sources 2>/dev/null || true
+
 echo "Installing build prerequisites..."
 apt-get update -y
 apt-get install -y build-essential cmake debhelper libtclcl1-dev libotcl1-dev tcl8.6-dev tk8.6-dev libx11-dev libxext-dev libxmu-dev dpkg-dev
